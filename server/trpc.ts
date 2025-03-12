@@ -1,11 +1,14 @@
 import { initTRPC } from '@trpc/server';
-
-// 👇 Define the context structure (e.g., username)
-// Optional username in context
+import { Todo, User } from './db';
+ 
 const t = initTRPC.context<{
-  username?: string;  
+  db: {
+    Todo: typeof Todo,
+    User: typeof User
+  };
+  userId?: string
 }>().create();
 
-// Export reusable router and procedures
 export const router = t.router;
 export const publicProcedure = t.procedure;
+export const middleware = t.middleware;

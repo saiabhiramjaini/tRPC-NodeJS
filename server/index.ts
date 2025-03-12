@@ -1,40 +1,48 @@
-import { createHTTPServer } from "@trpc/server/adapters/standalone";
-import { publicProcedure, router } from "./trpc";
-import { z } from "zod";
+import { router } from './trpc';
+import { createHTTPServer } from '@trpc/server/adapters/standalone';
+import mongoose, { mongo } from 'mongoose';
+import { User , Todo} from "./db";
+import jwt from "jsonwebtoken";
+import { userRouter } from './routers/user';
+import { todoRouter } from './routers/todo';
+import cors from "cors";
+export const SECRET = 'secret';
 
-const todoInputType = z.object({
-    title: z.string(),
-    description: z.string(),
-  });
+mongoose.connect('mongodb://localhost:27017/trpc');
 
-// Sample router with a todo procedure
+// using trpc
 const appRouter = router({
-  createTodo: publicProcedure
-  .input(todoInputType)
-  .mutation(async (opts) => {
-    const username = opts.ctx.username; // Access context
-    console.log("Username:", username);
-
-    // Logic to handle todo creation
-    return { id: "1", message: "Todo created!" };
-  }),
+    user: userRouter,
+    todo: todoRouter,
 });
 
-// 👇 Create the context to check auth headers
-const server = createHTTPServer({
-  router: appRouter,
-  createContext(opts) {
-    // Extract the Authorization header
-    const authHeader = opts.req.headers["authorization"];
-    console.log("Authorization Header:", authHeader);
-
-    // Simulate decoding a token (e.g., JWT)
-    const username = authHeader === "Bearer 123" ? "john_doe" : undefined;
-
-    return { username };
-  },
-});
-
-server.listen(3000);
-console.log("🚀 Server running on http://localhost:3000");
 export type AppRouter = typeof appRouter;
+
+const server = createHTTPServer({
+    router: appRouter,
+    middleware: cors(),
+    createContext(opts) {
+        let authHeader = opts.req.headers["authorization"];
+
+        if (authHeader) {
+            const token = authHeader.split(' ')[1];
+            console.log(token);
+            return new Promise<{db: {Todo: typeof Todo, User: typeof User}, userId?: string}>((resolve) => {
+                jwt.verify(token, SECRET, (err, user) => {
+                    if (user) {
+                      // @ts-ignore
+                        resolve({userId: user.userId as string, db: {Todo, User}});
+                    } else {
+                        resolve({db: {Todo, User}});
+                    }
+                });
+            })
+        }
+
+        return {
+            db: {Todo, User},
+        }
+    }
+});
+   
+server.listen(3000);
